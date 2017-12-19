@@ -1,2 +1,1 @@
-# SBFDSCapstone
-Springboard Foundations of Data Science Capstone Project
+# Springboard Foundations of Data Science Capstone Project
