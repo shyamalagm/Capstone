@@ -1,7 +1,7 @@
 ---
 title: "Capstone Project Proposals"
 author: "Shyamala Gurumurthy"
-date: "02 January, 2018"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document: 
     keep_md: yes
