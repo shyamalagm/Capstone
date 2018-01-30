@@ -120,7 +120,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Capstone Project Proposals</h1>
 <h4 class="author"><em>Shyamala Gurumurthy</em></h4>
-<h4 class="date"><em>22 January, 2018</em></h4>
+<h4 class="date"><em>29 January, 2018</em></h4>
 
 </div>
 
@@ -134,7 +134,7 @@ $(document).ready(function () {
 </div>
 <div id="exploratory-data-analysis" class="section level3">
 <h3>Exploratory data analysis</h3>
-<p>This will entail exploratory data analysis. Visualising the data should give some insight into certain particularities of this dataset.</p>
+<p>This will entail exploratory data analysis. Visualising the data should give some insight into certain particularities of this dataset. Of the 86 attributes, it is likely that many will not influence the response. EDA will help select features that would be useful in the context of the objective.</p>
 </div>
 <div id="model-building" class="section level3">
 <h3>Model building</h3>
@@ -154,11 +154,32 @@ $(document).ready(function () {
 </div>
 <div id="exploratory-data-analysis-1" class="section level3">
 <h3>Exploratory data analysis</h3>
-<p>EDA would include time-series visualization of crime by category and location with the aim of answering goals in the objective.</p>
+<p>EDA would include time-series visualization of crime by category and location with the aim of answering goals in the objective. Trends with seasonality and holidays will have to be specially considered for each year. The time of day is expected to play an important role.</p>
 </div>
 <div id="model-building-1" class="section level3">
 <h3>Model building</h3>
 <p>An appropriate subset of data will have to be determined and prepared of regression analysis. Important features need to be selected for predictions as per the objective.</p>
+</div>
+</div>
+<div id="oflc-perm-disclosure-data" class="section level2">
+<h2><a href="https://www.foreignlaborcert.doleta.gov/performancedata.cfm?CFID=160810&amp;CFTOKEN=81367008">OFLC PERM Disclosure Data</a></h2>
+<p>PERM (Program Electronic Review Management) is an electronic processing system for filing labor certification applications for employment based green card. Under the PERM system, labor certification applications are filed electronically and directly with the U.S. Department of Labor (DOL). This allows an employer to hire a foreign worker to work permanently in the United States.</p>
+<div id="objective-2" class="section level3">
+<h3>Objective</h3>
+<p>Possible prediction goals might include,</p>
+<ol style="list-style-type: decimal">
+<li>Visa decisions based on employee/employer/class of admission</li>
+<li>Likelihood of given visa decision based employer/country of citizenship/city/sector</li>
+</ol>
+</div>
+<div id="exploratory-data-analysis-2" class="section level3">
+<h3>Exploratory data analysis</h3>
+<p>EDA would include investigating features in relation to visa decisions. This would typically result in reducing the number of features that would be used in building the model.</p>
+<p>Based on trends and patterns observed, some features may warrant further study. Correlation tables between the features and visa decision response will also have to be explored. Based on these, new features may need to be created.</p>
+</div>
+<div id="model-building-2" class="section level3">
+<h3>Model building</h3>
+<p>After determining the features of interest, a regression model needs to be created with the aim of answering one or all the questions in the objective on a test dataset. This will include assessing the quality of the model.</p>
 </div>
 </div>
 
