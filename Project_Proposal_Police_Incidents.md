@@ -9,9 +9,7 @@ output:
     theme: cosmo
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 
 The city of San Francisco is not only known as a commercial and financial center of Northen California, but is also earning a growing reputation for having one of the highest crime rates in the country. The San Francisco Police Department (SFPD) is the city police department of San Francisco, that serves an estimated population of 1.2 million. The SFPD has been frequently met with criticism, due to the large number of cases that remain unsolved every year. For this reason, SFPD is determined to build trust, engage with the San Francisco community, and drive positive outcomes in public safety. In an effort to be as transparent as possible with information about the department and its operation, SFPD has shared [various data sets](https://data.sfgov.org/browse?Department-Metrics_Publishing-Department=Police%20Department). The [Police Department incidents](https://data.sfgov.org/Public-Safety/Police-Department-Incidents/tmnf-yvry) data is analyzed in this project.
 
