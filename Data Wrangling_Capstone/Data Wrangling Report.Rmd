@@ -1,0 +1,47 @@
+---
+title: 'Capstone: Data Wrangling'
+author: "Shyamala Gurumurthy"
+date: "February 18, 2018"
+output: 
+  html_document: 
+    highlight: tango
+    keep_md: yes
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+Two datasets required for this project were downloaded from the San Francisco govenment website ([incidents](https://data.sfgov.org/Public-Safety/Police-Department-Incidents/tmnf-yvry)) and from the Zillow website ([house_prices](https://www.zillow.com/research/data/)). Both the datasets were available as CSV files. The required libraries were then imported and loaded into R. These datasets were then imported into R and converted into tibble for easy viewing and data manipulations. 
+
+#### Incidents File
+  1. The dataset was first examined for dimensions, columns names, structure and summary statistics.
+  2. The `IncidntNum`, `PdId` columns were removed as they contained unique id for cases registered and hence would not be of much use. All other columns were retained.
+  3. The `Date` column was separated into `Month`, `DayofMonth` and `Year` columns. These columns were converted to numeric data type.
+  4. Missing observation
+  
+    (i). The dataset was checked for missing values. It had 1 row with a missing `PdDistrict` value. This observation was stored in a dataframe called `mis_incidents`. The complete cases were stored in incidents dataframe.
+    
+    (ii). The missing value was imputed as follows. It was noticed that the Address column in incidents was not unique. Therefore, the Address from the `mis_incidents` was matched to Address in the `incidents` dataframe. Then, the corresponding `PDdistrict` for that address was filled into the missing value. This observation was then added back to the `incidents` dataframe.
+    
+  5. Two columns `X`, `Y` were respectively renamed to the more descriptive names `latitude`, `longitude`. 
+  
+  
+To aid in the inference of the effect of crime rate on the property prices in San Francisco, a secondary dataset House prices is considered.
+
+#### House Prices File
+  1. The dataset was first examined for dimensions, columns names, structure and summary statistics.
+  2. A new dataframe called `sf_house_price` was created by filtering the house prices for San Francisco city.
+  3. The `RegionID`, `State`, `Metro`, `CountyName`, `SizeRank` columns were removed because only `City`, `RegionName` and the price per sqft for the months and years are required.
+  4. The data was in wide format where 261 of the 263 columns represented the price per sqft for a given month and year. This was converted into a long format data with 4 columns. The `yearmonth` column was separated into `year` and `month` columns.
+  5. The column `RegionName` was renamed to a more descriptive name `zipcode`.
+  
+To combine the `incidents` and `sf_house_price` dataframes, I have loaded a new library called `zipcode`. The dataframe `zipcode` in this library was used to add a new `zipcode` column using the `latitude` and `longitude` columns in `incidents` dataset. This new column was later used as a key to join the `incidents` and `sf_house_prices` dataframes.
+
+#### Merge Incidents and House prices file 
+
+  1. As mentioned above, the `zipcode` dataset was used to merge the 2 dataframes. A new dataframe called `zipcode_ca` was created by filtering the zipcodes for California state.
+  2. For each location in the `incidents` dataset, the zipcode was obtained using the closest corresponding location in the `zipcode_ca` dataset. 
+  3. The `zipcode` column was used to join the `incidents` dataset with the `sf_house_price` dataset. The resulting `incidents_house_price` dataframe now contained the house prices corresponding to each incident location by year and month.
