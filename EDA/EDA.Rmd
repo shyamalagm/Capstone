@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 ```{r load_libraries, warning=FALSE, message=FALSE, results='hide'}
 library(tidyverse)
 library(leaflet)
+library(ggmap)
 ```
 
 ### Reduce number of categories 
@@ -70,6 +71,26 @@ leaflet() %>%
                    label = filt_zipc$leaflet_labels) %>%
   addLegend("topright", col_pal, values =  filt_zipc$New_Category)
 ```
+
+In addition to the plot above, crimes can also be visualized by category. As an illustration, the plots below show the spatial distribution of crimes in the top 2 and bottom 2 categories.
+
+```{r warning=FALSE, message=FALSE, fig.width=12, fig.height=6}
+sf_map <- get_map(location = "San Francisco", maptype = "roadmap", zoom = 12)
+sf <- ggmap(sf_map)
+
+plot1 <- incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ARSON", "SEXUAL OFFENSES", "WEAPON")) %>%
+  select(zipcode, New_Category, latitude, longitude) %>%
+  count(zipcode, New_Category, latitude, longitude) %>%
+  arrange(desc(n))
+
+sf +
+  geom_point(data = plot1 %>% filter (n > 20), 
+             aes(x = longitude, y = latitude), color = "red",
+             alpha = 0.9, size = 0.1) +
+  facet_grid(~ New_Category)
+```
+
 ### Number of crimes for each category
 The bar plot below provides a relative comparison of the number of crimes for each category.
 ```{r plot_ncrimes}
@@ -150,4 +171,62 @@ resolution %>%
   scale_color_manual(values = c("DarkRed", "DarkGreen"))  +
   theme_bw() +
   theme(legend.position="none")
+```
+
+### Trend of incidents vs time
+The number of incidents for the top six most frequent categories occuring hourly, during a 24 hour period, are shown in the plot below. The `Time` axis corresponds to the 24-hour clock time. Each datapoint corresponds to the sum total of all the crimes between the years 2003-2018, for the corresponding category and time. 
+
+
+```{r plot_incidents_time, fig.width=12}
+incidents_new_categories$Time <- incidents_new_categories$Time %>%
+  substr(1,2) %>% as.numeric()
+
+incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ASSAULT", "ARSON", "BURGLARY", "DRUG/ALCOHOL", "VEHICLE THEFT")) %>%
+  group_by(New_Category, Time) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = Time, y = n)) + 
+  geom_point(aes(color = New_Category)) + 
+  geom_line(aes(group = New_Category, color = New_Category)) 
+```
+
+For each datapoint in the plot above, the plot below provides the breakdown by year.
+```{r, fig.width=12}
+incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ASSAULT", "ARSON", "BURGLARY", "DRUG/ALCOHOL", "VEHICLE THEFT"),
+         year %in% 2003:2017) %>%
+  group_by(year, New_Category, Time) %>%
+  summarise(n = n()) %>%
+  group_by(New_Category, Time) %>%
+  ggplot(aes(x = Time, y = n, fill = New_Category)) +
+  geom_bar(stat = "identity", width=1.0, color = "black") + 
+  facet_wrap(~year)
+```
+
+### Crimes vs House Prices
+
+The plot below shows the variation of median house prices and the number of crimes for each `PdDistrict`. It is to visualize the impact of the crime rate on real estate prices.
+
+```{r_plot_crime_vs_price, fig.width=12}
+incidents_by_price <- incidents_new_categories %>%
+  group_by(PdDistrict) %>%
+  mutate(median_prices = median(pricepersqft, na.rm = TRUE),
+         n_crimes = n()) %>%
+  select(PdDistrict, median_prices, n_crimes)%>%
+  distinct()
+  
+incidents_by_price %>% 
+  ggplot(aes(x = PdDistrict)) + 
+  geom_point(aes(y = n_crimes, color = "Crimes"), size = 2) +
+  geom_line(aes(y = n_crimes, group = 1, color = "Crimes"), size = 1) +
+  geom_point(aes(y = median_prices * 500, color = "Property prices"), size = 2) +
+  geom_line(aes(y = median_prices * 500, group = 1, color = "Property prices"), size = 1) +
+  scale_y_continuous(sec.axis = sec_axis(~. *0.002, name = "Property Prices [per sqft]"),
+                     labels=function(n){format(n, scientific = FALSE)},
+                     breaks = seq(0,500000,by = 25000)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        plot.title = element_text(hjust = 0.5)) + 
+  scale_colour_manual(values = c("red", "blue")) + 
+  labs(title = "Crimes Vs Property prices", y = "Number of Crimes", 
+       x = "San Francisco Areas", colour = "Parameter")
 ```
