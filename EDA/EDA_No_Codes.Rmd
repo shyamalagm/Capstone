@@ -1,0 +1,226 @@
+---
+title: 'Capstone: Exploratory Data Analysis'
+author: "Shyamala Gurumurthy"
+date: "March 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+```
+
+```{r load_libraries, warning=FALSE, message=FALSE, results='hide'}
+library(tidyverse)
+library(leaflet)
+library(ggmap)
+```
+
+#### Data Preprocessing
+The `incidents_house_price` dataset from the previous data cleaning exercise is used in this document.
+
+The number of categories were reduced from 39 to 15 by combining common crime types under the same category. This reduction in detail is to help gain key insights while plotting the data. 
+
+```{r reduce_categories, warning=FALSE, message=FALSE, results='hide'}
+Categories <- read_csv("Categories.csv")
+```
+
+```{r incidents_house_price, warning=FALSE, message=FALSE, results='hide'}
+incidents_house_price <- read_csv("incidents_house_price.csv")
+```
+
+```{r incidents_new_categories, warning=FALSE, message=FALSE, results='hide'}
+incidents_new_categories <- left_join(incidents_house_price, Categories, by = "Category") %>%
+  select(-n) %>%
+  rename(New_Category = `New Category`) 
+```
+
+```{r zipc, warning=FALSE, message=FALSE, results='hide'}
+zipc <- incidents_new_categories %>% 
+  select(zipcode, New_Category, latitude, longitude) %>%
+  count(zipcode, New_Category, latitude, longitude) %>%
+  arrange(desc(n))
+```
+
+```{r filt_zipc, warning=FALSE, message=FALSE, results='hide'}
+filt_zipc <- zipc %>% filter(n > 10) %>%
+  mutate(leaflet_labels = paste0(New_Category, " (", n, ")")) %>%
+  mutate(leaflet_radius = findInterval(n, c(50, 100, 200, 300, 400, 500, 600, 
+                                            700, 800, 900, 1000, 2000, 5000, 10000)))
+
+filt_zipc$New_Category <- as.factor(filt_zipc$New_Category)
+```
+
+
+#### Density of crimes by category
+The number of crimes for each category are shown on a map of San Francisco (using the `leaflet` library). This provides a spatial visualization of areas with high concentration of crimes by crime-types. The tool tip indicates the category followed by the number of crimes in parenthesis `()`. 
+```{r plot_map_filt_zipc}
+col_pal <- colorFactor(palette = "magma", levels = 
+                         levels(filt_zipc$New_Category))
+
+leaflet() %>%
+  setView(lng = -122.4164, lat = 37.7766, zoom = 12) %>%
+  addTiles() %>%
+  addCircleMarkers(filt_zipc, lng = filt_zipc$longitude, lat = filt_zipc$latitude, 
+                   weight = 5, radius = filt_zipc$leaflet_radius * 1.5, fillOpacity = 0.8,
+                   color = col_pal(filt_zipc$New_Category),
+                   label = filt_zipc$leaflet_labels) %>%
+  addLegend("topright", col_pal, values =  filt_zipc$New_Category)
+```
+
+One observes a higher density of crimes in the north-east part of the map. This region belongs to the **SOUTHERN, MISSION, CENTRAL and NORTHERN** police districts. One possible explanation for the high number of crimes could be due to the large population density. Also, there is more opportunity due to the large number of tourists in this area. The south-east region has a relatively much lower crime density. Note, however, that there are four hot-spots near the south.
+
+In addition to the plot above, it is also instructive to visualize crimes by category. As an illustration, the plots below show the distribution of crimes for the top 2 (Theft and Arson) and bottom 2 (sexual offenses and Weapon) categories. The high larceny/theft rate in the city area is probably due to the increased use of public transportation which makes it convenient for thieves to target. As mentioned previously, the large number of tourists visiting the area are also easy victims. All other crimes can be explained (as a pedantic excercise) but are not further pursued in this document.
+
+```{r warning=FALSE, message=FALSE, fig.width=12, fig.height=6}
+sf_map <- get_map(location = "San Francisco", maptype = "roadmap", zoom = 12)
+sf <- ggmap(sf_map)
+
+plot1 <- incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ARSON", "SEXUAL OFFENSES", "WEAPON")) %>%
+  select(zipcode, New_Category, latitude, longitude) %>%
+  count(zipcode, New_Category, latitude, longitude) %>%
+  arrange(desc(n))
+
+sf +
+  geom_point(data = plot1 %>% filter (n > 20), 
+             aes(x = longitude, y = latitude), color = "red",
+             alpha = 0.9, size = 0.1) +
+  labs(title = "Spatial distribution of crimes" , x = "Longitude", 
+       y = "Latitude") +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  facet_grid(~ New_Category)
+
+```
+
+#### Number of crimes for each category
+The bar plot below provides a relative comparison of the number of crimes for each category. Crimes summed over all the years. We observe that from 2003 to 2018, **Theft, Arson, Assault and Burglary** were (are) major concerns for San Francisco Police Department. The **Other Offenses and Non-criminal** categories, that contain several smaller numbers of non-violent crimes, also have a significant contribution. 
+
+```{r plot_ncrimes}
+incidents_new_categories  %>%
+  ggplot(aes(x = New_Category)) +
+  geom_bar() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_y_continuous(labels=function(n){format(n, scientific = FALSE)},
+                     breaks = seq(0,500000,by = 25000)) + 
+  labs(x = "Categories of crime", y = "Number of crimes",
+       title = "Number of crimes for each category") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  coord_flip()
+```
+
+#### Incidents by month and year
+The heatmap below shows the number of crimes by month and year. It allows for easy visualization of hot-spots, i.e., month-year combinations with high crime-rates. One observes that, there is an increase in crimes from 2013 - 2017 compared to the previous years. Crimes are lower during February, November and December. For the winter months of November and December, the lower population density due to holiday/vacation could explain the lower crimes rates. Tourism is also low around this time. In contrast, the summer months of March to October see a relatively larger number of crimes, probably due to the corresponding increased population density and hence opportunity.
+
+```{r incidents_by_month}
+incidents_by_month <- incidents_new_categories %>%
+                     select(year, month) %>%
+                     count(year, month)
+```
+
+```{r plot_incidents_by_month}
+incidents_by_month %>%
+  mutate_at(c("month"), as.factor) %>%
+  mutate_at(c("year"), as.factor) %>%
+  filter(n > 7000) %>%
+  ggplot(aes(x = month, y = year)) +
+  geom_tile(aes(fill = n)) + 
+  scale_fill_gradient(low = "white", high = "darkred") +
+  labs(x = "Months", y = "Years", title = "Incidents by month and year") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0),
+        plot.title = element_text(hjust = 0.5)) + 
+  scale_x_discrete(labels=month.name)  
+```
+
+#### Trend of incidents vs time
+The number of incidents for the top six most frequent categories occuring during a 24 hour period are shown in the plot below. The `Time` axis corresponds to the 24-hour clock time. Each datapoint corresponds to the total of all the crimes between the years 2003 - 2018, for the corresponding category and time. One can consider the trends in crimes to be divided in 3 distinct time slots: 
+
+1) 3 a.m - 7 a.m : Has a lower number of crimes compared to other times during the day, most likely because a majority of the people are at home during this time. Therefore, there is less opportunity. After 7 a.m there is a gradual increase in the crime rate.
+2) 10 a.m  - 1 p.m: Has a peak at 12 p.m most likely corresponding to lunch break hours for most organisations.
+3) 5 p.m - 12 a.m: Has a peak at 6 p.m probably because of the increase in population due to people returning from work. 
+
+```{r plot_incidents_time, fig.width=12}
+incidents_new_categories$Time <- incidents_new_categories$Time %>%
+  substr(1,2) %>% as.numeric()
+
+incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ASSAULT", "ARSON", "BURGLARY", "DRUG/ALCOHOL", "VEHICLE THEFT")) %>%
+  group_by(New_Category, Time) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = Time, y = n)) + 
+  geom_point(aes(color = New_Category), size = 3) + 
+  geom_line(aes(group = New_Category, color = New_Category)) +
+  labs(title = "Hourly occurence of top 6 most frequent crimes",
+       x = "24 - hours", y = "Number of crimes") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+For each datapoint in the plot above, the plot below provides the breakdown by year. One observes the following:
+
+1) After 2005, there has been a drastic **decrease** in the cumulative count of  vehicle thefts throughout the day, from ~18000 to ~8000. Nevertheless, the trend for increased thefts after 3pm ("increased" relative to other times during the 24-hour period) is consistent year over year.
+2) After 2009, drug and alcohol cases have seen a **reduction** from ~13000 to ~10000 cases, although this decrease has been inconsistent year over year.
+3) There has been a drastic **increase** in the number of thefts every year since 2011, with apporoximately 5000 cases added every year.
+```{r, fig.width=12}
+incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ASSAULT", "ARSON", "BURGLARY", "DRUG/ALCOHOL", "VEHICLE THEFT"),
+         year %in% 2003:2017) %>%
+  group_by(year, New_Category, Time) %>%
+  summarise(n = n()) %>%
+  group_by(New_Category, Time) %>%
+  ggplot(aes(x = Time, y = n, fill = New_Category)) +
+  geom_bar(stat = "identity", width=1.0, color = "black") +
+  facet_wrap(~year) +
+  labs(title = "Hourly occurence of top 6 most frequent crimes by year",
+       x = "24 - hours", y = "Number of crimes") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+#### Number of incidents resolved by PD district
+The bar plot below shows the number of incidents resolved for each PD district. As seen above in the leaflet map, the *SOUTHERN, MISSION, CENTRAL and NORTHERN* regions have  the largest number of crimes, but the SFPD has not been able to resolve most of the cases. Tenderloin is the only police district where the number of resolved cases exceed the number of unresolved cases. 
+```{r resolution}
+resolution <- incidents_new_categories %>%
+  select(New_Category, PdDistrict,Resolution) %>%
+  mutate(Resolved = ifelse(Resolution == "NONE" , 0, 1))
+```
+
+```{r plot_resolution, fig.width=12, fig.height=6}
+resolution %>%
+  mutate(Resolved = ifelse(Resolved == 0, "N", "Y")) %>%
+  mutate_at(c("Resolved"), .funs = as.factor) %>%
+  ggplot(aes(x = Resolved)) + 
+  geom_bar(aes(color = Resolved, fill = Resolved)) + 
+  facet_grid(~PdDistrict) +
+  scale_fill_manual(values = c("DarkRed", "DarkGreen")) +
+  scale_color_manual(values = c("DarkRed", "DarkGreen"))  +
+  theme_bw() +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Incidents resolved by each Police Department",
+       x = "Resolved", y = "Number of cases")
+```
+
+#### Crimes vs House Prices
+
+The plot below shows the variation of median house prices and the number of crimes for each `PdDistrict`. It is to visualize the impact of the crime rate on real estate prices. As can be seen, there is no correlation between the house prices and the corresponding number of crimes. However, there could be a causal relationship, but the data at hand is insufficient to entertain such hypothesis!
+
+```{r_plot_crime_vs_price, fig.width=12}
+incidents_by_price <- incidents_new_categories %>%
+  group_by(PdDistrict) %>%
+  mutate(median_prices = median(pricepersqft, na.rm = TRUE),
+         n_crimes = n()) %>%
+  select(PdDistrict, median_prices, n_crimes)%>%
+  distinct()
+  
+incidents_by_price %>% 
+  ggplot(aes(x = PdDistrict)) + 
+  geom_point(aes(y = n_crimes, color = "Crimes"), size = 2) +
+  geom_line(aes(y = n_crimes, group = 1, color = "Crimes"), size = 1) +
+  geom_point(aes(y = median_prices * 500, color = "Property prices"), size = 2) +
+  geom_line(aes(y = median_prices * 500, group = 1, color = "Property prices"), size = 1) +
+  scale_y_continuous(sec.axis = sec_axis(~. *0.002, name = "Property Prices [per sqft]"),
+                     labels=function(n){format(n, scientific = FALSE)},
+                     breaks = seq(0,500000,by = 25000)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        plot.title = element_text(hjust = 0.5)) + 
+  scale_colour_manual(values = c("red", "blue")) + 
+  labs(title = "Crimes Vs Property prices", y = "Number of Crimes", 
+       x = "San Francisco Areas", colour = "Parameter")
+```
