@@ -1,0 +1,174 @@
+---
+title: "Statistical Analysis"
+author: "Shyamala Gurumurthy"
+date: "March 21, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r load_libraries, warning=FALSE, message=FALSE, results='hide'}
+library(tidyverse)
+library(ggmap)
+library(viridis)
+```
+
+#### Data Preprocessing
+The `incidents_house_price` dataset from the previous data cleaning exercise is used in this document.
+```{r}
+Categories <- read_csv("Categories.csv")
+incidents_house_price <- read_csv("incidents_house_price.csv")
+
+incidents_new_categories <- left_join(incidents_house_price, Categories, by = "Category") %>%
+  select(-n) %>%
+  rename(New_Category = `New Category`) 
+
+glimpse(incidents_new_categories)
+```
+
+#### Number of crimes for each category
+The bar plot below shows the number of crimes for each category stacked by police district. `THEFT` is the largest crime category with ~475000 incidents in total. The largest contributors, in order of the number of theft incidents, come from the `SOUTHERN`, `NORTHERN`, `CENTRAL`, `MISSION`, and `BAYVIEW` police districts. `OTHER_OFFENSES` accounts for ~41000 incidents, with the distribution across police districts following the same trend as in `THEFT`. Individual contributions from the remaining categories are ~240000 *each*, less than 50% compared to `THEFT`, but the *relative* contributions from each police district are similar to those of `THEFT`.
+
+```{r, fig.width=12, fig.height=5}
+incidents_new_categories  %>%
+  ggplot(aes(x = New_Category)) +
+  geom_bar(aes(fill = PdDistrict), color = "black") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_y_continuous(labels=function(n){format(n, scientific = FALSE)},
+                     breaks = seq(0,500000,by = 25000)) + 
+  labs(x = "Categories of crime", y = "Number of crimes",
+       title = "Number of crimes for each category") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  coord_flip() +
+  theme_bw() +
+  scale_fill_brewer(palette = "Spectral")
+```
+
+
+#### Number of crimes by month
+The box plot below shows the distribution of the total number of crimes, `n`, by month between the years 2003 and 2018. The dashed line is the median of the population, `n`. The bottom and top solid lines are the first and third quartiles of `n` respectively. Crime distributions for February and December are below the first quartile implying lower crimes rates compared to the other months. October on the other hand has a higher number of crimes, as it is above the third quartile. The remaining months fall between the first and third quartiles, and are there representative samples of the population distribution, `n`. One also notes two outliers in the months of January and December.
+```{r, fig.width=12, fig.height=5}
+incidents_new_categories %>%
+  group_by(year, month) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = factor(month), y = n)) + 
+  geom_boxplot() + 
+  geom_hline(yintercept=11994, linetype="dashed",colour='red', size = 1) +
+  geom_hline(yintercept=11420, colour='red', size = 1) +  
+  geom_hline(yintercept=12721., colour='red', size = 1) +
+  labs(x = "Months", y = "Number of crimes",
+       title = "Number of crimes by month") +
+  theme_bw()
+```
+
+#### Number of crimes by week
+
+The box plot below shows the distribution of the total number of crimes, `n` by week accross all the years by crime category . The dashed line is the median of the population, `n`; the bottom and top solid lines are the first and third quartiles of `n` respectively for each category.  One notes that the days of the week for which the number of crimes are above or below the distribution (solid lines) vary according to the crime type. Each warrants a socio-economic explanation which is beyond the scope of this document.
+
+```{r, fig.width=12, fig.height=8}
+incidents_new_categories %>%
+  group_by(month, DayOfWeek, New_Category) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  group_by(New_Category) %>%
+  mutate(n_median = median(n), quantile1 = quantile(n)[2], 
+         quantile3 = quantile(n)[4])  %>%
+  ungroup() %>%
+  ggplot(aes(x = factor(DayOfWeek), y = n)) + 
+  geom_boxplot() +
+  geom_hline(aes(yintercept=n_median), 
+             linetype="dashed",colour='red', size = 1) +
+  geom_hline(aes(yintercept=quantile1), colour='red', size = 1) +  
+  geom_hline(aes(yintercept=quantile3), colour='red', size = 1)  +
+  labs(x = "Days of week", y = "Number of crimes",
+       title = "Number of crimes by week") +
+  theme_bw() +
+  theme(axis.text.x=element_text(color = "black", size=8, 
+                                 angle=90, hjust=1)) + 
+  facet_wrap(~New_Category, scales = "free_y")
+```
+
+#### Number of crimes by time of day
+
+The box plot below shows the trend in the number of crimes by time of day. As is evident, there is a significant decrease between 3am to 6am, while there is a substantial increase in the evening from 4pm to 7pm. There are also a high number of crimes during lunch time at 12pm.
+
+```{r, fig.width=12, fig.height=5}
+incidents_new_categories$Time <- incidents_new_categories$Time %>%
+  substr(1,2) %>% as.numeric()
+
+incidents_new_categories %>%
+  group_by(month, DayOfWeek, Time) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = factor(Time), y = n)) + 
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=11)) +
+  geom_hline(yintercept=1193, linetype="dashed",colour='red', size = 1) +
+  geom_hline(yintercept=686, colour='red', size = 1) +  
+  geom_hline(yintercept=1408, colour='red', size = 1) + 
+  labs(x = "24 - hrs of day", y = "Number of crimes",
+       title = "Number of crimes by time of day")
+```
+
+
+#### Density of crime by area
+The the map below shows the distribution of crimes in each police district. One notices that the areas **BAYVIEW, CENTRAL, MISSION, NORTHEN and SOUTHERN** have a higher density of crime whereas the remaining areas are comparitively lower.
+```{r, fig.width=14, fig.height=5}
+library(ggmap)
+sf_map <- get_map(location = "San Francisco", maptype = "roadmap", zoom = 12)
+sf <- ggmap(sf_map)
+
+plot1 <- incidents_new_categories %>%
+  select(PdDistrict, latitude, longitude, New_Category) %>%
+  count(PdDistrict, latitude, longitude, New_Category) %>%
+  arrange(desc(n))
+
+sf +
+  geom_point(data = plot1 %>% filter (n > 20), 
+             aes(x = longitude, y = latitude), color = "red",
+             alpha = 0.9, size = 0.1) +
+  labs(title = "Spatial distribution of crimes" , x = "Longitude", 
+       y = "Latitude") +
+  facet_wrap(~ PdDistrict) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, hjust=1))
+```
+
+#### Histograms to check normality of number of crimes
+
+The histogram below is plotted to determine the shape of the crime distribution for all the police districts from 2003-2018. We notice that, this distribution is right/positive skewed. 
+```{r, fig.width=12, fig.height=5}
+incidents_new_categories %>% 
+  group_by(year, PdDistrict, New_Category) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  ggplot(aes(x = n)) + 
+  geom_histogram(bins = 30) + 
+  labs(x= "Number of crimes")
+```
+A $\log$ transformation is used to reduce the skewness. The histogram below is for the same data after logarithmic transformation. Now, the shape looks more normally distributed.
+```{r, fig.width=12, fig.height=5}
+incidents_new_categories %>% 
+  group_by(year, PdDistrict, New_Category) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  mutate_at(c("n"), .funs = log) %>%
+  ggplot(aes(x = n)) + 
+  geom_histogram(bins = 30) +
+  labs(x= "Number of crimes")
+```
+
+#### Histograms to check normality of property price
+
+The histogram below is plotted to determine the shape of the distribution of property price for all the police districts from 2003-2018. We see that this distribution is bimodal. They have two unequal peaks.
+```{r, fig.width=12, fig.height=5}
+incidents_new_categories %>%
+  group_by(year, PdDistrict, New_Category) %>%
+  summarise(mean_price = mean(pricepersqft, na.rm = TRUE)) %>%
+  arrange(desc(mean_price)) %>%
+  ggplot(aes(x = mean_price)) + 
+  geom_histogram(bins = 35) + 
+  labs(x= "Mean price per sq.ft")
+```
