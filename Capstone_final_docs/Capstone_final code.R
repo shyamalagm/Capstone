@@ -254,6 +254,54 @@ incidents_new_categories %>%
   labs(title = "Incidents resolved by each Police Department",
        x = "Resolved", y = "Number of cases")
 
+# Percentage of crime resolved for each Category
+incidents_new_categories %>%
+  select(New_Category, Resolved) %>%
+  group_by(New_Category) %>%
+  mutate(total_crimes = n()) %>%
+  filter(Resolved == 1) %>%
+  mutate(solved = n()) %>%
+  distinct() %>%
+  mutate(percent_solved = round((solved/total_crimes) * 100)) %>%
+  ggplot(aes(x = New_Category, y = percent_solved)) +
+  geom_bar(stat = 'identity') + 
+  scale_y_continuous(breaks = seq(0,100,by = 10)) +
+  labs(x = 'Category of crimes', y = 'Percentage of resolved crimes') +
+  coord_flip()
+
+# Percentage of crimes resolved everyday
+incidents_new_categories %>%
+  select(DayOfMonth, month, Resolved) %>%
+  group_by(DayOfMonth, month) %>%
+  mutate(total_crimes = n()) %>%
+  filter(Resolved == 1) %>%
+  mutate(solved = n()) %>%
+  distinct() %>%
+  mutate(percent_solved = round((solved/total_crimes) * 100))  %>%
+  ungroup() %>%
+  ggplot(aes(x = month, y = DayOfMonth)) +
+  geom_tile(aes(fill = percent_solved)) + 
+  scale_fill_viridis(option = "magma") +
+  theme_bw()
+
+# Percentage of crimes resolved by Time and Category
+incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ASSAULT", "ARSON", "BURGLARY", 
+                             "DRUG/ALCOHOL", "VEHICLE THEFT")) %>%
+  select(New_Category, Time, Resolved) %>%
+  group_by(New_Category, Time) %>%
+  mutate(total_crimes = n()) %>%
+  filter(Resolved == 1) %>%
+  mutate(solved = n()) %>%
+  distinct() %>%
+  arrange(Time) %>%
+  mutate(percent_solved = round((solved/total_crimes) * 100)) %>%
+  ggplot(aes(x = Time, y = percent_solved)) + 
+  geom_bar(aes(fill = New_Category), stat = "identity", color = 'black', size = 1) +
+  scale_y_continuous(breaks = seq(0, 225, by = 25)) + 
+  labs(x = 'Time', y = 'Percentage of resolved crimes')
+
+#Statistical Analysis
 # Number of crimes for each category
 incidents_new_categories  %>%
   ggplot(aes(x = New_Category)) +
