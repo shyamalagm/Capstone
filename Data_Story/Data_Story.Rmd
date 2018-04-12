@@ -1,0 +1,169 @@
+---
+title: "Data Story"
+author: "Shyamala Gurumurthy"
+date: "May 12, 2018"
+output: html_document
+---
+
+The two main goals of this capstone are,
+
+1.  **To predict if an incident would be resolved by a Police department, given its category**. This will indicate the efficacy in crime resolution of the Police department in a given district. Such information is of prime interest to multiple parties. For example, *the police* can develop specific strategies to reduce crime types that otherwise prove difficult to resolve. The *administration* of a given district can introduce stricter laws and protocols to deter crimes with less resolution (thereby decreasing the frequency of these crimes). The *local population* would be most interested in understanding types of crimes that require vigilance. 
+
+2. **Infer if crime rates affect property prices in San Francisco.** That is, to see if the areas that have low crime rates enjoy higher property values. This is of interest to realtors, sellers and buyers of property. Buyers would use this information to assess the neighborhood safety of the target property. Sellers would use it to value the resale price of their property for maximum profit.
+
+
+The data wrangling method will involve identifying the variables that have an effect on the categories of crime. This includes creating new variables such as Year, Month, Date, etc. and deleting varibles that have no effect on the analysis such as Incident Number, PdId, etc. It also involves identifying missing/outlier values (if any!) and replacing/deleting them appropriately. The Zillow dataset must be combined with the SFPD dataset to yield the property price corresponding to each crime location. A more detailed explanation for the same follows.
+
+### Exploratory Data Analysis
+
+#### Density of crimes by category
+
+To ensure good visualization of density of crimes by category on a map, without much loss of information, only a subset of `incidents_new_categories` is taken. This subset is called `filt_zipc`. It is filtered by columns `zipcode, New_Category, latitude and longitude`. As this is a large dataframe, we consider only those zipcode areas where more than 10 crimes have occured. The number of crimes for each category are shown on a map of San Francisco (using the `leaflet` library). This provides a spatial visualization of areas with high concentration of crimes by crime-types. The tool tip indicates the category followed by the number of crimes in parenthesis `()`.
+```{r zipc, warning=FALSE, message=FALSE, results='hide'}
+library(leaflet)
+library(ggmap)
+library(tidyverse)
+library(viridis)
+
+Categories <- read_csv("Categories.csv")
+incidents_house_price <- read_csv("incidents_house_price.csv")
+
+incidents_new_categories <- left_join(incidents_house_price, Categories, by = "Category") %>%
+  select(-n) %>%
+  rename(New_Category = `New Category`) 
+
+incidents_new_categories$Time <- incidents_new_categories$Time %>%
+  substr(1,2) %>% as.numeric()
+
+incidents_new_categories <- incidents_new_categories %>%
+  mutate(Resolved = ifelse(Resolution == "NONE" , 0, 1))
+
+zipc <- incidents_new_categories %>% 
+  select(zipcode, New_Category, latitude, longitude) %>%
+  count(zipcode, New_Category, latitude, longitude) %>%
+  arrange(desc(n))
+
+filt_zipc <- zipc %>% filter(n > 10) %>%
+  mutate(leaflet_labels = paste0(New_Category, " (", n, ")")) %>%
+  mutate(leaflet_radius = findInterval(n, c(50, 100, 200, 300, 400, 500, 600, 
+                                            700, 800, 900, 1000, 2000, 5000, 10000)))
+
+filt_zipc$New_Category <- as.factor(filt_zipc$New_Category)
+```
+
+```{r plot_map_filt_zipc}
+col_pal <- colorFactor(palette = "magma", levels = 
+                         levels(filt_zipc$New_Category))
+
+leaflet() %>%
+  setView(lng = -122.4164, lat = 37.7766, zoom = 12) %>%
+  addTiles() %>%
+  addCircleMarkers(filt_zipc, lng = filt_zipc$longitude, lat = filt_zipc$latitude, 
+                   weight = 5, radius = filt_zipc$leaflet_radius * 1.5, fillOpacity = 0.8,
+                   color = col_pal(filt_zipc$New_Category),
+                   label = filt_zipc$leaflet_labels) %>%
+  addLegend("topright", col_pal, values =  filt_zipc$New_Category)
+```
+
+One observes a higher density of crimes in the north-east part of the map. This region belongs to the **SOUTHERN, MISSION, CENTRAL, BAYVIEW and NORTHERN** police districts. One possible explanation for the high number of crimes could be due to the large population density. Also, there is more opportunity due to the large number of tourists in this area. The south-east region has a relatively much lower crime density. Note, however, that there are four hot-spots near the south.
+
+#### Trend of incidents vs time
+The number of incidents for the top six categories occuring during a 24 hour period are shown in the plot below. The `Time` axis corresponds to the 24-hour clock time. Each datapoint corresponds to the total of all the crimes between the years 2003 - 2018, for the corresponding category and time. One can consider the trends in crimes to be divided in 3 distinct time slots: 
+
+1) 3 a.m - 7 a.m : Has a lower number of crimes compared to other times during the day, most likely because a majority of the people are at home during this time. Therefore, there is less opportunity. After 7 a.m there is a gradual increase in the crime rate.
+2) 10 a.m  - 1 p.m: Has a peak at 12 p.m most likely corresponding to lunch break hours for most organisations.
+3) 5 p.m - 12 a.m: Has a peak at 6 p.m probably because of the increase in population due to people returning from work. 
+
+```{r plot_incidents_time, fig.width=12}
+incidents_new_categories %>%
+  filter(New_Category %in% c("THEFT", "ASSAULT", "ARSON", "BURGLARY", "DRUG/ALCOHOL", "VEHICLE THEFT")) %>%
+  group_by(New_Category, Time) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = Time, y = n)) + 
+  geom_point(aes(color = New_Category), size = 3) + 
+  geom_line(aes(group = New_Category, color = New_Category)) +
+  labs(title = "Hourly occurence of top 6 most frequent crimes",
+       x = "24 - hours", y = "Number of crimes") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+#### Number of incidents resolved by PD district
+The bar plot below shows the number of incidents resolved for each PD district. As seen above in the leaflet map, the *SOUTHERN, MISSION, CENTRAL and NORTHERN* regions have  the largest number of crimes, but the SFPD has not been able to resolve most of the cases. Tenderloin is the only police district where the number of resolved cases exceed the number of unresolved cases. 
+
+```{r plot_resolution, fig.width=12, fig.height=6}
+incidents_new_categories %>%
+  mutate(Solved = ifelse(Resolved == 0, "N", "Y")) %>%
+  mutate_at(c("Solved"), .funs = as.factor) %>%
+  ggplot(aes(x = Solved)) + 
+  geom_bar(aes(color = Solved, fill = Solved)) + 
+  facet_grid(~PdDistrict) +
+  scale_fill_manual(values = c("DarkRed", "DarkGreen")) +
+  scale_color_manual(values = c("DarkRed", "DarkGreen"))  +
+  theme_bw() +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Incidents resolved by each Police Department",
+       x = "Resolved", y = "Number of cases")
+```
+
+#### Percentage of crime resolved for each Category
+It can be seen that **Warrants** and **Drug/Alcohol** categories have the highest percentage of resolved crimes (greater than 90%). **Vehicle Theft** and **Theft** have the lowest percentage of crimes resolved despite **Theft** having the largest number of crimes compared to other categories.
+
+```{r}
+incidents_new_categories %>%
+  select(New_Category, Resolved) %>%
+  group_by(New_Category) %>%
+  mutate(total_crimes = n()) %>%
+  filter(Resolved == 1) %>%
+  mutate(solved = n()) %>%
+  distinct() %>%
+  mutate(percent_solved = round((solved/total_crimes) * 100)) %>%
+  ggplot(aes(x = New_Category, y = percent_solved)) +
+  geom_bar(stat = 'identity') + 
+  scale_y_continuous(breaks = seq(0,100,by = 10)) +
+  labs(x = 'Category of crimes', y = 'Percentage of resolved crimes') +
+  coord_flip()
+```
+
+#### Percentage of crimes resolved everyday
+
+It can be seen that more number of crimes are resolved during the months of January-May. The percentage of crimes resolved start decreasing in the month of June and is the lowest in December. It is also noted that most crimes that occur on the first day of any month have the least percentage of resolved cases.
+
+```{r}
+incidents_new_categories %>%
+  select(DayOfMonth, month, Resolved) %>%
+  group_by(DayOfMonth, month) %>%
+  mutate(total_crimes = n()) %>%
+  filter(Resolved == 1) %>%
+  mutate(solved = n()) %>%
+  distinct() %>%
+  mutate(percent_solved = round((solved/total_crimes) * 100))  %>%
+  ungroup() %>%
+  ggplot(aes(x = month, y = DayOfMonth)) +
+  geom_tile(aes(fill = percent_solved)) + 
+  scale_fill_viridis(option = "magma") +
+  theme_bw()
+```
+
+#### Relationship between incidents and house price
+
+The correlation plot below shows a high correlation between price per sqft and year, whereas it shows a low correlation between price per sqft and number of incidents in an area. This answers the second problem statement, of whether crime rates affect property prices in San Francisco. It can be seen clearly that they are uncorrelated. This implies that number of crime incidents in an area hardly has an effect on the property prices.
+
+```{r message=FALSE, fig.width=12, fig.height=5}
+library(corrplot)
+incidents_by_price <- incidents_new_categories %>%
+  group_by(PdDistrict, year) %>%
+  mutate(median_prices = median(pricepersqft, na.rm = TRUE),
+         n_crimes = n()) %>%
+  select(PdDistrict, median_prices, n_crimes)%>%
+  distinct()
+
+price_vs_crimes <- incidents_by_price %>% 
+  ungroup() %>% 
+  select(-PdDistrict) %>%
+  drop_na()
+corrplot.mixed(cor(price_vs_crimes), lower.col = "black", upper = "color")
+```
+
+### Machine Learning
+
+We use the `incidents_new_categories` dataframe to build a logistic model to predict if an incident would be resolved by a Police department, given its category (first problem statement). The column `Resolution` is the response variable. This column is coded as `0` if the resolution provided is "NONE" and `1` for all others. It is then saved in a new column called `Resolved`. The ratio of resolved versus unresolved cases is 1:1.6 indicating that this is a fairly balanced dataset. Moreover, the large number of observations ensures that the training samples spans the entire feature space resulting in a robust model. 
